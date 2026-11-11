@@ -2,10 +2,12 @@
 
 ## Bizani branch
 
-This fork's default `bizani` branch carries local fixes and is the Marketplace
-update source. It installs integration files directly from the branch rather
-than upstream release ZIPs. Develop each change on a separate topic branch,
-publish it, then merge into `bizani`. Keep upstream changes separate on `main`.
+This fork's default `bizani` branch carries local fixes for manual custom-component
+deployments. Copy `custom_components/hass_nuki_bt` from this branch into the Home
+Assistant configuration directory, preserve existing lock entries, and restart
+Home Assistant after Python changes. Its Marketplace manifest also supports branch
+downloads. Develop each change on a separate topic branch, publish it, then merge
+into `bizani`. Keep upstream changes separate on `main`.
 
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
