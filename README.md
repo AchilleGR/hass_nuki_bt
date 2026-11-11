@@ -1,5 +1,12 @@
 # Nuki BT
 
+## Bizani branch
+
+This fork's default `bizani` branch carries local fixes and is the Marketplace
+update source. It installs integration files directly from the branch rather
+than upstream release ZIPs. Develop each change on a separate topic branch,
+publish it, then merge into `bizani`. Keep upstream changes separate on `main`.
+
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
 [![License][license-shield]](LICENSE)
