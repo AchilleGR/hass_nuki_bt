@@ -3,13 +3,6 @@
     "config": {
         "flow_title": "{name} ({address})",
         "step": {
-            "reconfigure": {
-                "title": "Reconfigure Nuki pairing",
-                "description": "Put the lock in pairing mode before changing the client type. Bridge pairing replaces the existing Bridge registration for this lock.",
-                "data": {
-                    "client_type": "Client type"
-                }
-            },
             "step1": {
                 "title": "New Nuki device",
                 "description": "Please select",

@@ -113,11 +113,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Handle removal of an entry."""
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        coordinator = hass.data[DOMAIN].pop(entry.entry_id)
-        await coordinator.device.disconnect()
+        hass.data[DOMAIN].pop(entry.entry_id)
     return unloaded
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry."""
-    await hass.config_entries.async_reload(entry.entry_id)
+    await async_unload_entry(hass, entry)
+    await async_setup_entry(hass, entry)
