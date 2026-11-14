@@ -7,8 +7,7 @@
                 "title": "Reconfigure Nuki pairing",
                 "description": "Put the lock in pairing mode before changing the client type. Bridge pairing replaces the existing Bridge registration for this lock.",
                 "data": {
-                    "client_type": "Client type",
-                    "background_refresh": "Refresh state every minute"
+                    "client_type": "Client type"
                 }
             },
             "step1": {

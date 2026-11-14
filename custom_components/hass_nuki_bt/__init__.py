@@ -21,7 +21,6 @@ from pyNukiBT import NukiDevice, NukiConst
 from .const import (
     CONF_APP_ID,
     CONF_AUTH_ID,
-    CONF_BACKGROUND_REFRESH,
     CONF_DEVICE_ADDRESS,
     CONF_DEVICE_PUBLIC_KEY,
     CONF_PRIVATE_KEY,
@@ -90,7 +89,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         device_name=entry.data.get(CONF_NAME),
         connectable=True,
         security_pin=None if entry.data.get(CONF_PIN) is None else int(entry.data[CONF_PIN]),
-        background_refresh=entry.options.get(CONF_BACKGROUND_REFRESH, True),
     )
 
     if not await coordinator.async_wait_ready():

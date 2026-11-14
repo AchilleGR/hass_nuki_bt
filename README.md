@@ -9,9 +9,9 @@ Home Assistant after Python changes. Its Marketplace manifest also supports bran
 downloads. Develop each change on a separate topic branch, publish it, then merge
 into `bizani`. Keep upstream changes separate on `main`.
 
-Lock state updates on Bluetooth notifications. Home Assistant also reads it once
-a minute over an available Bluetooth route so a missed notification does not
-leave the display stale. This background read never operates the lock.
+Lock state updates on Bluetooth notifications or when Query lock state is used.
+The Reconfigure form can re-pair an existing entry in App or Bridge mode
+without replacing its entity IDs.
 
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]

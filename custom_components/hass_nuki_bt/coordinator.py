@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from datetime import datetime, timedelta
 import logging
 from typing import TYPE_CHECKING
 
@@ -16,7 +15,6 @@ from homeassistant.components.bluetooth.active_update_coordinator import (
     ActiveBluetoothDataUpdateCoordinator,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_time_interval
 from pyNukiBT import NukiDevice, NukiConst
 
 if TYPE_CHECKING:
@@ -25,7 +23,6 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 DEVICE_STARTUP_TIMEOUT = 300
-STATE_REFRESH_INTERVAL = timedelta(minutes=1)
 
 
 class NukiDataUpdateCoordinator(ActiveBluetoothDataUpdateCoordinator[None]):
@@ -41,7 +38,6 @@ class NukiDataUpdateCoordinator(ActiveBluetoothDataUpdateCoordinator[None]):
         device_name: str,
         connectable: bool,
         security_pin: int = None,
-        background_refresh: bool = True,
     ) -> None:
         """Initialize global nuki data updater."""
         super().__init__(
@@ -60,7 +56,6 @@ class NukiDataUpdateCoordinator(ActiveBluetoothDataUpdateCoordinator[None]):
         self.model = None
         self.last_nuki_log_entry = {"index" : 0}
         self._security_pin = security_pin
-        self._background_refresh = background_refresh
         self._unsubscribe_nuki_callbacks = None
 
     @callback
@@ -68,14 +63,7 @@ class NukiDataUpdateCoordinator(ActiveBluetoothDataUpdateCoordinator[None]):
         self._unsubscribe_nuki_callbacks = self.device.subscribe(
             self._nuki_device_callback
         )
-        super()._async_start()
-        if self._background_refresh:
-            self._on_stop.append(
-                async_track_time_interval(
-                    self.hass, self._async_refresh_state, STATE_REFRESH_INTERVAL,
-                    cancel_on_shutdown=True,
-                )
-            )
+        return super()._async_start()
 
     @callback
     def _async_stop(self) -> None:
@@ -94,17 +82,6 @@ class NukiDataUpdateCoordinator(ActiveBluetoothDataUpdateCoordinator[None]):
         seconds_since_last_poll: float | None,
     ) -> bool:
         return self.device.poll_needed(seconds_since_last_poll)
-
-    @callback
-    def _async_refresh_state(self, _now: datetime) -> None:
-        """Reconcile state if a change advertisement did not trigger a poll."""
-        if self.hass.is_stopping:
-            return
-        if service_info := bluetooth.async_last_service_info(
-            self.hass, self.address, connectable=True
-        ):
-            self._last_service_info = service_info
-            self._debounced_poll.async_schedule_call()
 
     async def _async_update(
         self, service_info: bluetooth.BluetoothServiceInfoBleak = None

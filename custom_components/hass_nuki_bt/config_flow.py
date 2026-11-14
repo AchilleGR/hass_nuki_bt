@@ -23,7 +23,6 @@ from pyNukiBT import NukiConst, NukiDevice, NukiErrorException
 from .const import (
     CONF_APP_ID,
     CONF_AUTH_ID,
-    CONF_BACKGROUND_REFRESH,
     CONF_DEVICE_ADDRESS,
     CONF_DEVICE_PUBLIC_KEY,
     CONF_PRIVATE_KEY,
@@ -149,10 +148,8 @@ class NukiFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             client_type = user_input[CONF_CLIENT_TYPE]
-            refresh = user_input[CONF_BACKGROUND_REFRESH]
-            options = {**entry.options, CONF_BACKGROUND_REFRESH: refresh}
             if client_type == entry.data[CONF_CLIENT_TYPE]:
-                return self.async_update_and_abort(entry, options=options)
+                return self.async_update_and_abort(entry)
             if (entry.state is not config_entries.ConfigEntryState.LOADED
                 or not await self.hass.config_entries.async_unload(entry.entry_id)):
                 errors["base"] = "connection"
@@ -164,7 +161,7 @@ class NukiFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     )
                     updates[CONF_CLIENT_TYPE] = client_type
                     result = self.async_update_reload_and_abort(
-                        entry, data_updates=updates, options=options
+                        entry, data_updates=updates
                     )
                     updated = True
                     return result
@@ -185,7 +182,6 @@ class NukiFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_CLIENT_TYPE, default=entry.data[CONF_CLIENT_TYPE]): SelectSelector(
                     SelectSelectorConfig(options=["Bridge", "App"], mode=SelectSelectorMode.DROPDOWN)
                 ),
-                vol.Required(CONF_BACKGROUND_REFRESH, default=entry.options.get(CONF_BACKGROUND_REFRESH, True)): bool,
             }),
             errors=errors,
         )

@@ -13,7 +13,7 @@ from homeassistant.config_entries import ConfigEntryState
 import pytest
 
 
-@pytest.mark.parametrize("action", ["bridge", "failed", "refresh_only"])
+@pytest.mark.parametrize("action", ["bridge", "failed", "unchanged"])
 def test_reconfigure_preserves_entry_identity(monkeypatch, action):
     """Only successful pairing switches credentials, and never creates an entry."""
     package = ModuleType("nuki_pairing_test")
@@ -33,7 +33,7 @@ def test_reconfigure_preserves_entry_identity(monkeypatch, action):
         ))
         flow._get_reconfigure_entry = Mock(return_value=entry)
         flow.async_update_reload_and_abort = Mock(return_value="reconfigured")
-        flow.async_update_and_abort = Mock(return_value="options updated")
+        flow.async_update_and_abort = Mock(return_value="unchanged")
         flow.async_show_form = Mock(side_effect=lambda **data: data)
         flow._async_pair = AsyncMock(return_value={"auth_id": "new"})
         view = await flow.async_step_reconfigure()
@@ -41,14 +41,11 @@ def test_reconfigure_preserves_entry_identity(monkeypatch, action):
         if action == "failed":
             flow._async_pair.side_effect = BleakError("fixture connection failure")
         result = await flow.async_step_reconfigure({
-            "client_type": "App" if action == "refresh_only" else "Bridge",
-            "background_refresh": False,
+            "client_type": "App" if action == "unchanged" else "Bridge",
         })
-        if action == "refresh_only":
-            assert result == "options updated"
-            flow.async_update_and_abort.assert_called_once_with(
-                entry, options={"other": True, "background_refresh": False},
-            )
+        if action == "unchanged":
+            assert result == "unchanged"
+            flow.async_update_and_abort.assert_called_once_with(entry)
             assert not flow._async_pair.called
             assert not flow.hass.config_entries.async_unload.called
         else:
@@ -63,7 +60,6 @@ def test_reconfigure_preserves_entry_identity(monkeypatch, action):
                 assert result == "reconfigured"
                 flow.async_update_reload_and_abort.assert_called_once_with(
                     entry, data_updates={"auth_id": "new", "client_type": "Bridge"},
-                    options={"other": True, "background_refresh": False},
                 )
 
     try:
