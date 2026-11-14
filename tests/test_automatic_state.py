@@ -32,7 +32,7 @@ def runtime(monkeypatch, tmp_path):
     monkeypatch.setattr(update_coordinator, "async_register_callback", lambda *a, **kw: lambda: None)
     monkeypatch.setattr(update_coordinator, "async_track_unavailable", lambda *_: lambda: None)
 
-    async def setup():
+    async def setup(*, background_refresh=True):
         hass = HomeAssistant(str(tmp_path))
         address = "AA:BB:CC:DD:EE:FF"
         ble = SimpleNamespace(address=address)
@@ -59,7 +59,7 @@ def runtime(monkeypatch, tmp_path):
             device=ble, time=hass.loop.time(),
             advertisement=SimpleNamespace(manufacturer_data={76: b"\x02\xc4"}, rssi=-71),
         )
-        env.coordinator = mod.NukiDataUpdateCoordinator(hass, logging.getLogger(__name__), ble, device, "fixture", "Fixture", True)
+        env.coordinator = mod.NukiDataUpdateCoordinator(hass, logging.getLogger(__name__), ble, device, "fixture", "Fixture", True, background_refresh=background_refresh)
         env.coordinator._debounced_poll.cooldown = 0.005
         env.entity = LockEntity()
         env.entity.device = device
@@ -100,6 +100,24 @@ def test_notification_still_updates_before_the_fallback(runtime):
     async def run():
         env = await runtime()
         try:
+            env.service_info.advertisement.manufacturer_data[76] = b"\x02\xc5"
+            env.coordinator._async_handle_bluetooth_event(env.service_info, bluetooth.BluetoothChange.ADVERTISEMENT)
+            await env.hass.async_block_till_done(wait_background_tasks=True)
+            assert env.entity.state == "unlocked"
+            assert env.reads == 1
+        finally:
+            env.stop()
+
+    asyncio.run(run())
+
+
+def test_notification_updates_with_periodic_reads_disabled(runtime):
+    """Disabling the periodic read leaves the notification path active."""
+    async def run():
+        env = await runtime(background_refresh=False)
+        try:
+            await asyncio.sleep(0.145)
+            assert env.reads == 0
             env.service_info.advertisement.manufacturer_data[76] = b"\x02\xc5"
             env.coordinator._async_handle_bluetooth_event(env.service_info, bluetooth.BluetoothChange.ADVERTISEMENT)
             await env.hass.async_block_till_done(wait_background_tasks=True)

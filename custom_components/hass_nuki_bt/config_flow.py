@@ -5,6 +5,7 @@ from typing import Any
 import re
 
 from nacl.public import PrivateKey
+from bleak import BleakError
 
 import voluptuous as vol
 from homeassistant import config_entries
@@ -22,6 +23,7 @@ from pyNukiBT import NukiConst, NukiDevice, NukiErrorException
 from .const import (
     CONF_APP_ID,
     CONF_AUTH_ID,
+    CONF_BACKGROUND_REFRESH,
     CONF_DEVICE_ADDRESS,
     CONF_DEVICE_PUBLIC_KEY,
     CONF_PRIVATE_KEY,
@@ -130,21 +132,83 @@ class NukiFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if CONF_CLIENT_TYPE not in self._data or CONF_DEVICE_ADDRESS not in self._data:
             return await self.async_step_step1(user_input)
 
+        try:
+            self._data.update(await self._async_pair(self._data))
+        except NukiErrorException as ex:
+            if ex.error_code != NukiConst.ErrorCode.P_ERROR_NOT_PAIRING:
+                raise
+            return self.async_show_form(step_id="pair", errors={"base": "pairing"})
+
+        return self.async_create_entry(title=self._data[CONF_NAME], data=self._data)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Pair a different client type without replacing the existing entry."""
+        entry = self._get_reconfigure_entry()
+        errors = {}
+        if user_input is not None:
+            client_type = user_input[CONF_CLIENT_TYPE]
+            refresh = user_input[CONF_BACKGROUND_REFRESH]
+            options = {**entry.options, CONF_BACKGROUND_REFRESH: refresh}
+            if client_type == entry.data[CONF_CLIENT_TYPE]:
+                return self.async_update_and_abort(entry, options=options)
+            if (entry.state is not config_entries.ConfigEntryState.LOADED
+                or not await self.hass.config_entries.async_unload(entry.entry_id)):
+                errors["base"] = "connection"
+            else:
+                updated = False
+                try:
+                    updates = await self._async_pair(
+                        {**entry.data, CONF_CLIENT_TYPE: client_type}
+                    )
+                    updates[CONF_CLIENT_TYPE] = client_type
+                    result = self.async_update_reload_and_abort(
+                        entry, data_updates=updates, options=options
+                    )
+                    updated = True
+                    return result
+                except NukiErrorException as exc:
+                    errors["base"] = (
+                        "pairing" if exc.error_code == NukiConst.ErrorCode.P_ERROR_NOT_PAIRING
+                        else "connection"
+                    )
+                except (BleakError, TimeoutError):
+                    errors["base"] = "connection"
+                finally:
+                    if not updated:
+                        self.hass.config_entries.async_schedule_reload(entry.entry_id)
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema({
+                vol.Required(CONF_CLIENT_TYPE, default=entry.data[CONF_CLIENT_TYPE]): SelectSelector(
+                    SelectSelectorConfig(options=["Bridge", "App"], mode=SelectSelectorMode.DROPDOWN)
+                ),
+                vol.Required(CONF_BACKGROUND_REFRESH, default=entry.options.get(CONF_BACKGROUND_REFRESH, True)): bool,
+            }),
+            errors=errors,
+        )
+
+    async def _async_pair(self, data: dict[str, Any]) -> dict[str, str]:
+        """Pair with the selected device and return its new credentials."""
         app_id = random.getrandbits(32)
         keypair = PrivateKey.generate()
         public_key = bytes(keypair.public_key)
         private_key = bytes(keypair)
 
-        if self._data[CONF_CLIENT_TYPE] == "App":
+        if data[CONF_CLIENT_TYPE] == "App":
             client_type = NukiConst.NukiClientType.APP
         else:
             client_type = NukiConst.NukiClientType.BRIDGE
         ble_device = bluetooth.async_ble_device_from_address(
-            self.hass, self._data[CONF_DEVICE_ADDRESS], connectable=True
+            self.hass, data[CONF_DEVICE_ADDRESS], connectable=True
         )
+        if ble_device is None:
+            raise BleakError("No connectable route to the Nuki device")
 
         device = NukiDevice(
-            address=self._data[CONF_DEVICE_ADDRESS],
+            address=data[CONF_DEVICE_ADDRESS],
             auth_id=None,
             nuki_public_key=None,
             bridge_public_key=public_key,
@@ -157,29 +221,20 @@ class NukiFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 self.hass, addr, connectable=True
             ),
         )
-        await device.connect()
         try:
-            ret = await device.pair(None if self._data.get(CONF_PIN) is None else int(self._data[CONF_PIN]))
-        except NukiErrorException as ex:
-            LOGGER.error(ex)
-            if ex.error_code == NukiConst.ErrorCode.P_ERROR_NOT_PAIRING:
-                return self.async_show_form(
-                    step_id="pair",
-                    errors={"base": "pairing"},
-                )
+            await device.connect()
+            pin = data.get(CONF_PIN)
+            ret = await device.pair(None if pin is None else int(pin))
+        finally:
+            await device.disconnect()
 
-        self._data[CONF_AUTH_ID] = ret["auth_id"].hex()
-        self._data[CONF_DEVICE_PUBLIC_KEY] = ret["nuki_public_key"].hex()
-        self._data[CONF_PUBLIC_KEY] = public_key.hex()
-        self._data[CONF_PRIVATE_KEY] = private_key.hex()
-        self._data[CONF_APP_ID] = str(app_id)
-
-        await device.disconnect()
-
-        return self.async_create_entry(
-            title=self._data[CONF_NAME],
-            data=self._data,
-        )
+        return {
+            CONF_AUTH_ID: ret["auth_id"].hex(),
+            CONF_DEVICE_PUBLIC_KEY: ret["nuki_public_key"].hex(),
+            CONF_PUBLIC_KEY: public_key.hex(),
+            CONF_PRIVATE_KEY: private_key.hex(),
+            CONF_APP_ID: str(app_id),
+        }
 
     async def async_step_manual(
         self,

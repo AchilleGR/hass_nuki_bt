@@ -21,6 +21,7 @@ from pyNukiBT import NukiDevice, NukiConst
 from .const import (
     CONF_APP_ID,
     CONF_AUTH_ID,
+    CONF_BACKGROUND_REFRESH,
     CONF_DEVICE_ADDRESS,
     CONF_DEVICE_PUBLIC_KEY,
     CONF_PRIVATE_KEY,
@@ -89,6 +90,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         device_name=entry.data.get(CONF_NAME),
         connectable=True,
         security_pin=None if entry.data.get(CONF_PIN) is None else int(entry.data[CONF_PIN]),
+        background_refresh=entry.options.get(CONF_BACKGROUND_REFRESH, True),
     )
 
     if not await coordinator.async_wait_ready():
@@ -113,11 +115,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Handle removal of an entry."""
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
+        coordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        await coordinator.device.disconnect()
     return unloaded
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry."""
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)
+    await hass.config_entries.async_reload(entry.entry_id)

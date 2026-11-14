@@ -41,6 +41,7 @@ class NukiDataUpdateCoordinator(ActiveBluetoothDataUpdateCoordinator[None]):
         device_name: str,
         connectable: bool,
         security_pin: int = None,
+        background_refresh: bool = True,
     ) -> None:
         """Initialize global nuki data updater."""
         super().__init__(
@@ -59,6 +60,7 @@ class NukiDataUpdateCoordinator(ActiveBluetoothDataUpdateCoordinator[None]):
         self.model = None
         self.last_nuki_log_entry = {"index" : 0}
         self._security_pin = security_pin
+        self._background_refresh = background_refresh
         self._unsubscribe_nuki_callbacks = None
 
     @callback
@@ -67,12 +69,13 @@ class NukiDataUpdateCoordinator(ActiveBluetoothDataUpdateCoordinator[None]):
             self._nuki_device_callback
         )
         super()._async_start()
-        self._on_stop.append(
-            async_track_time_interval(
-                self.hass, self._async_refresh_state, STATE_REFRESH_INTERVAL,
-                cancel_on_shutdown=True,
+        if self._background_refresh:
+            self._on_stop.append(
+                async_track_time_interval(
+                    self.hass, self._async_refresh_state, STATE_REFRESH_INTERVAL,
+                    cancel_on_shutdown=True,
+                )
             )
-        )
 
     @callback
     def _async_stop(self) -> None:
